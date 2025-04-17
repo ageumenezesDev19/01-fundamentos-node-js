@@ -1,28 +1,36 @@
 import http from 'node:http'
-import { json } from './middlewares/json.js'
 
-const users = []
+import { json } from './middlewares/json.js'
+import { routes } from './routes.js'
+
+// Query Parameters: URL Stateful => Filtros, paginação, não-obrigatórios
+// Route Parameters: Identificação de recurso
+// Request Body: Envio de informações de um formulário (HTTPs)
+
+//http://localhost:3333/users?userId=1&name=Diego
+
+// GET http://localhost:3333/users/1
+// DELETE http: //localhost:3333/users/1
+
+// POST http://localhost:3333/users
+
+// Edição e remoção
 
 const server = http.createServer(async (req, res) => {
   const { method, url } = req
 
   await json(req, res)
 
-  if (method === 'GET' && url === '/users') {
-    return res
-      .end(JSON.stringify(users))
-  }
+  const route = routes.find(route => {
+    return route.method === method && route.path.test(url)
+  })
 
-  if (method === 'POST' && url === '/users') {
-    const { name, email } = req.body
+  if (route) {
+    const routeParams = req.url.match(route.path)
 
-    users.push({
-      id: 1,
-      name,
-      email,
-    })
+    console.log(routeParams);
 
-    return res.writeHead(201).end()
+    return route.handler(req, res)
   }
 
   return res.writeHead(404).end()
