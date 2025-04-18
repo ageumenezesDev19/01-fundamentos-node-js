@@ -1,60 +1,43 @@
-import { randomUUID } from 'node:crypto'
-import { Database } from './database.js'
-import { buildRoutePath } from './utils/build-route-path.js'
+import http from 'node:http'
 
-const database = new Database()
+import { json } from './middlewares/json.js'
+import { routes } from './routes.js'
+import { extractQueryParams } from './utils/extract-query-params.js'
 
-export const routes = [
-  {
-    method: 'GET',
-    path: buildRoutePath('/users'),
-    handler: (req, res) => {
-      const users = database.select('users')
+// Query Parameters: URL Stateful => Filtros, paginação, não-obrigatórios
+// Route Parameters: Identificação de recurso
+// Request Body: Envio de informações de um formulário (HTTPs)
 
-      return res.end(JSON.stringify(users))
-    }
-  },
-  {
-    method: 'POST',
-    path: buildRoutePath('/users'),
-    handler: (req, res) => {
-      const { name, email } = req.body
+//http://localhost:3333/users?userId=1&name=Diego
 
-      const user = {
-        id: randomUUID(),
-        name,
-        email,
-      }
+// GET http://localhost:3333/users/1
+// DELETE http: //localhost:3333/users/1
 
-      database.insert('users', user)
+// POST http://localhost:3333/users
 
-      return res.writeHead(201).end()
-    }
-  },
-  {
-    method: 'PUT',
-    path: buildRoutePath('/users/:id'),
-    handler: (req, res) => {
-      const { id } = req.params
-      const { name, email } = req.body
+// Edição e remoção
 
-      database.update('users', id, {
-        name,
-        email,
-      })
+const server = http.createServer(async (req, res) => {
+  const { method, url } = req
 
-      return res.writeHead(204).end()
-    }
-  },
-  {
-    method: 'DELETE',
-    path: buildRoutePath('/users/:id'),
-    handler: (req, res) => {
-      const { id } = req.params
+  await json(req, res)
 
-      database.delete('users', id)
+  const route = routes.find(route => {
+    return route.method === method && route.path.test(url)
+  })
 
-      return res.writeHead(204).end()
-    }
+  if (route) {
+    const routeParams = req.url.match(route.path)
+
+    const { query, ...params } = routeParams.groups
+
+    req.params = params
+    req.query = query ? extractQueryParams(query) : {}
+
+    return route.handler(req, res)
   }
-]
+
+  return res.writeHead(404).end()
+})
+
+server.listen(3333)
